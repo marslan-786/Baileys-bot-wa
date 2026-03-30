@@ -8,6 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 let sock;
+let isSocketOpen = false;
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
@@ -16,15 +17,21 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: Browsers.macOS('Desktop'),
+        browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr || connection === 'open') {
+            isSocketOpen = true;
+        }
+
         if (connection === 'close') {
+            isSocketOpen = false;
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) {
                 setTimeout(startBot, 3000);
@@ -114,7 +121,16 @@ app.get('/pair/:phone', async (req, res) => {
     }
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        let retries = 0;
+        while (!isSocketOpen && retries < 15) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retries++;
+        }
+
+        if (!isSocketOpen) {
+            return res.status(500).json({ error: 'Connection Closed or not ready. Try again in 5 seconds.' });
+        }
+
         let code = await sock.requestPairingCode(phone);
         code = code?.match(/.{1,4}/g)?.join('-') || code;
         res.json({ success: true, code: code });
