@@ -1,0 +1,14 @@
+{
+  "name": "stylish-user-bot",
+  "version": "1.0.0",
+  "description": "Advanced VIP WhatsApp User Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "express": "^4.19.2",
+    "pino": "^8.20.0"
+  }
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Bot</title>
+<style>
+body{background:#0f172a;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:system-ui,-apple-system,sans-serif;color:#f8fafc;}
+.box{background:rgba(30,41,59,0.7);backdrop-filter:blur(10px);padding:2rem;border-radius:1rem;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);width:100%;max-width:24rem;border:1px solid rgba(255,255,255,0.1);text-align:center;}
+input{width:100%;padding:0.75rem;margin-bottom:1rem;border-radius:0.5rem;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:1rem;box-sizing:border-box;outline:none;}
+input:focus{border-color:#3b82f6;}
+button{width:100%;padding:0.75rem;border-radius:0.5rem;border:none;background:#3b82f6;color:white;font-size:1rem;font-weight:600;cursor:pointer;transition:all 0.2s;}
+button:hover{background:#2563eb;}
+.copy-btn{background:#10b981;margin-top:0.5rem;}
+.copy-btn:hover{background:#059669;}
+#res{display:none;margin-top:1.5rem;padding:1rem;background:#0f172a;border-radius:0.5rem;border:1px solid #334155;}
+#codeTxt{display:block;font-size:1.5rem;letter-spacing:0.2em;font-weight:bold;margin-bottom:1rem;}
+.loader{display:none;margin-top:1rem;color:#94a3b8;font-size:0.875rem;}
+</style>
+</head>
+<body>
+<div class="box">
+<input type="text" id="phone" placeholder="Enter Phone Number" autocomplete="off">
+<button id="btn" onclick="pair()">Connect</button>
+<div id="loader" class="loader">Processing...</div>
+<div id="res">
+<span id="codeTxt"></span>
+<button class="copy-btn" onclick="copy()">Copy</button>
+</div>
+</div>
+<script>
+async function pair(){
+const p=document.getElementById('phone').value.replace(/\D/g,'');
+if(!p)return;
+document.getElementById('btn').style.display='none';
+document.getElementById('loader').style.display='block';
+document.getElementById('res').style.display='none';
+try{
+const r=await fetch('/pair/'+p);
+const d=await r.json();
+if(d.code){
+document.getElementById('codeTxt').innerText=d.code;
+document.getElementById('res').style.display='block';
+}else{
+alert(d.error||'Failed');
+}
+}catch(e){alert('Error connecting');}
+document.getElementById('btn').style.display='block';
+document.getElementById('loader').style.display='none';
+}
+function copy(){
+const c=document.getElementById('codeTxt').innerText;
+navigator.clipboard.writeText(c);
+const cb=document.querySelector('.copy-btn');
+cb.innerText='Copied!';
+setTimeout(()=>cb.innerText='Copy',2000);
+}
+</script>
+</body>
+</html>
