@@ -1,7 +1,8 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, generateWAMessageFromContent, proto } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, generateWAMessageFromContent, proto, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -15,7 +16,8 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ['Ubuntu', 'Chrome', '20.0.04']
+        browser: Browsers.macOS('Desktop'),
+        syncFullHistory: false
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -24,7 +26,12 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startBot();
+            if (shouldReconnect) {
+                setTimeout(startBot, 3000);
+            } else {
+                fs.rmSync('baileys_auth_info', { recursive: true, force: true });
+                startBot();
+            }
         }
     });
 
@@ -97,11 +104,19 @@ app.get('/', (req, res) => {
 
 app.get('/pair/:phone', async (req, res) => {
     let phone = req.params.phone.replace(/[^0-9]/g, '');
+    
     if (!sock) {
         return res.status(500).json({ error: 'Bot is initializing' });
     }
+
+    if (sock.authState.creds.registered) {
+        return res.status(400).json({ error: 'Bot is already connected!' });
+    }
+
     try {
-        const code = await sock.requestPairingCode(phone);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        let code = await sock.requestPairingCode(phone);
+        code = code?.match(/.{1,4}/g)?.join('-') || code;
         res.json({ success: true, code: code });
     } catch (err) {
         res.status(500).json({ error: err.message });
