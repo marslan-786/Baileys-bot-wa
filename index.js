@@ -17,8 +17,7 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'info' }),
-        browser: Browsers.ubuntu('Chrome'),
-        syncFullHistory: false
+        browser: Browsers.ubuntu('Chrome')
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -35,15 +34,16 @@ async function startBot() {
 
         if (connection === 'close') {
             isSocketOpen = false;
-            console.log("Connection closed. Reason Code:", lastDisconnect?.error?.output?.statusCode);
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) {
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            console.log("Connection closed. Reason Code:", statusCode);
+            
+            if (statusCode === DisconnectReason.loggedOut || statusCode === 405) {
+                console.log("Session corrupt or logged out. Clearing session data...");
+                try { fs.rmSync('baileys_auth_info', { recursive: true, force: true }); } catch(e){}
+                startBot();
+            } else {
                 console.log("Reconnecting in 3 seconds...");
                 setTimeout(startBot, 3000);
-            } else {
-                console.log("Logged out completely. Clearing session data...");
-                fs.rmSync('baileys_auth_info', { recursive: true, force: true });
-                startBot();
             }
         }
     });
@@ -113,6 +113,13 @@ async function startBot() {
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/reset', (req, res) => {
+    console.log("Manual reset triggered. Wiping session...");
+    try { fs.rmSync('baileys_auth_info', { recursive: true, force: true }); } catch(e){}
+    res.json({ success: true, message: "Session wiped successfully! Bot is restarting." });
+    process.exit(1); 
 });
 
 app.get('/pair/:phone', async (req, res) => {
