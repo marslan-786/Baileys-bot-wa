@@ -16,7 +16,7 @@ async function startBot() {
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' }),
+        logger: pino({ level: 'info' }),
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
@@ -26,16 +26,22 @@ async function startBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         
+        console.log("Connection Update =>", connection || "Pending", "| QR Received:", !!qr);
+
         if (qr || connection === 'open') {
             isSocketOpen = true;
+            console.log("Socket is fully ready and open!");
         }
 
         if (connection === 'close') {
             isSocketOpen = false;
+            console.log("Connection closed. Reason Code:", lastDisconnect?.error?.output?.statusCode);
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) {
+                console.log("Reconnecting in 3 seconds...");
                 setTimeout(startBot, 3000);
             } else {
+                console.log("Logged out completely. Clearing session data...");
                 fs.rmSync('baileys_auth_info', { recursive: true, force: true });
                 startBot();
             }
@@ -111,34 +117,47 @@ app.get('/', (req, res) => {
 
 app.get('/pair/:phone', async (req, res) => {
     let phone = req.params.phone.replace(/[^0-9]/g, '');
+    console.log(`\n--- New Pairing Request Received for: ${phone} ---`);
     
     if (!sock) {
+        console.log("Error: Bot is initializing. sock object is undefined.");
         return res.status(500).json({ error: 'Bot is initializing' });
     }
 
     if (sock.authState.creds.registered) {
+        console.log("Error: Bot is already connected and registered.");
         return res.status(400).json({ error: 'Bot is already connected!' });
     }
 
     try {
+        console.log("Waiting for socket to open before requesting code...");
         let retries = 0;
         while (!isSocketOpen && retries < 15) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             retries++;
+            console.log(`Checking socket status... Attempt ${retries}/15`);
         }
 
         if (!isSocketOpen) {
+            console.log("Error: Socket never opened. Max retries reached.");
             return res.status(500).json({ error: 'Connection Closed or not ready. Try again in 5 seconds.' });
         }
 
+        console.log("Socket is OPEN! Requesting pairing code from WhatsApp servers...");
         let code = await sock.requestPairingCode(phone);
+        
+        console.log("Success! Raw Code Received:", code);
         code = code?.match(/.{1,4}/g)?.join('-') || code;
+        console.log("Formatted Code sent to UI:", code);
+        
         res.json({ success: true, code: code });
     } catch (err) {
+        console.log("Exception caught during requestPairingCode:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
 app.listen(PORT, () => {
+    console.log(`Web Server running on port ${PORT}`);
     startBot();
 });
